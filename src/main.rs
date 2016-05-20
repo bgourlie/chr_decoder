@@ -123,7 +123,7 @@ fn render_sdl() {
     let mut renderer = window.renderer().accelerated().present_vsync().build().unwrap();
 
     let mut texture = renderer.create_texture_streaming(PixelFormatEnum::BGR24,
-                                  (SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32))
+                                  SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
         .unwrap();
 
     texture.update(None, &screen.buffer, SCREEN_WIDTH * 3).unwrap();
