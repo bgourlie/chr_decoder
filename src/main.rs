@@ -1,8 +1,14 @@
 extern crate sdl2;
 
+#[macro_use]
+extern crate glium;
+
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+
+use glium::{DisplayBuild, Surface};
+use glium::glutin;
 
 use std::fs::File;
 use std::io::Read;
@@ -19,11 +25,7 @@ struct Rgb {
 
 impl Rgb {
     pub fn new(r: u8, g: u8, b: u8) -> Self {
-        Rgb {
-            r: r,
-            g: g,
-            b: b
-        }
+        Rgb { r: r, g: g, b: b }
     }
 }
 
@@ -56,57 +58,73 @@ fn print_tile(tiles: &[u8], tile_index: usize, screen: &mut Screen) {
         for pixel in 0..8 {
             let val = compute_color_index(plane0[line], plane1[line], pixel);
             let color = match val {
-                0 => {
-                    Rgb::new(0, 0, 0)
-                }
-                1 => {
-                    Rgb::new(64, 64, 64)
-                }
-                2 => {
-                    Rgb::new(128, 128, 128)
-                }
-                3 => {
-                    Rgb::new(255, 255, 255)
-                }
+                0 => Rgb::new(0, 0, 0),
+                1 => Rgb::new(64, 64, 64),
+                2 => Rgb::new(128, 128, 128),
+                3 => Rgb::new(255, 255, 255),
                 _ => {
-                    panic!("shouldnt get here");
+                    panic!("shouldn't get here");
                 }
             };
 
-            screen.put_pixel((tile_index * 8) + pixel as usize, (tile_index * 8) + line as usize, color);
+            screen.put_pixel((tile_index * 8) + pixel as usize, line as usize, color);
         }
     }
 }
 
 fn main() {
+    render_sdl();
+}
+
+fn get_buffer() -> Screen {
     let mut buf: Vec<u8> = Vec::new();
     let mut f = File::open("chr.bin").unwrap();
-    let mut screen = Screen::new();
     f.read_to_end(&mut buf);
     if buf.len() % 16 != 0 {
         panic!("Invalid CHR data.");
     }
 
-    println!("There are {} tiles", buf.len() / 16);
+    let mut screen = Screen::new();
 
     for n in 0..16 {
         print_tile(&buf, n, &mut screen);
-        println!("--");
     }
+
+    screen
+}
+
+// fn render_glium() {
+//    let screen = get_buffer();
+//
+//    let display = glutin::WindowBuilder::new()
+//    .with_vsync()
+//    .build_glium()
+//    .unwrap();
+//
+//    let dimensions = (SCREEN_WIDTH * 3, SCREEN_HEIGHT * 3);
+//    let screen = glium::texture::RawImage2d.from_raw_rgba_reversed();
+//
+// }
+
+fn render_sdl() {
+    let screen = get_buffer();
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let window = video_subsystem.window("rust-sdl2 demo: Video", SCREEN_WIDTH as u32 * 3, SCREEN_HEIGHT as u32 * 3)
-                                .position_centered()
-                                .opengl()
-                                .build()
-                                .unwrap();
+    let window = video_subsystem.window("rust-sdl2 demo: Video",
+                SCREEN_WIDTH as u32 * 3,
+                SCREEN_HEIGHT as u32 * 3)
+        .position_centered()
+        .opengl()
+        .build()
+        .unwrap();
 
     let mut renderer = window.renderer().accelerated().present_vsync().build().unwrap();
 
-    let mut texture = renderer.create_texture_streaming(PixelFormatEnum::BGR24, (SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32))
-                              .unwrap();
+    let mut texture = renderer.create_texture_streaming(PixelFormatEnum::BGR24,
+                                  (SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32))
+        .unwrap();
 
     texture.update(None, &screen.buffer, SCREEN_WIDTH * 3).unwrap();
     renderer.clear();
@@ -117,7 +135,8 @@ fn main() {
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
+                Event::Quit { .. } |
+                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
                 _ => {}
             }
         }
