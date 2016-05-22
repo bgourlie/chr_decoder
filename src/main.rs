@@ -16,95 +16,44 @@ use std::time::Duration;
 use std::fs::File;
 use std::io::Read;
 
-const SCREEN_WIDTH: usize = 256;
-const SCREEN_HEIGHT: usize = 240;
+mod consts;
+mod screen;
 
-#[derive(Copy, Clone)]
-struct Rgb {
-    r: u8,
-    g: u8,
-    b: u8,
-}
-
-impl Rgb {
-    pub fn new(r: u8, g: u8, b: u8) -> Self {
-        Rgb { r: r, g: g, b: b }
-    }
-}
-
-trait Screen {
-    fn put_pixel(&mut self, x: usize, y: usize, color: Rgb);
-
-    fn populate(&mut self, buf: &Vec<u8>) {
-        for tile_index in 0..16 {
-            let plane0_start_index = tile_index * 8;
-            let plane0_end_index = plane0_start_index + 8;
-            let plane1_start_index = plane0_end_index;
-            let plane1_end_index = plane1_start_index + 8;
-
-            let plane0 = &buf[plane0_start_index..plane0_end_index];
-            let plane1 = &buf[plane1_start_index..plane1_end_index];
-
-            for line in 0..8 {
-                for pixel in 0..8 {
-                    let val = compute_color_index(plane0[line], plane1[line], pixel);
-                    let color = match val {
-                        0 => Rgb::new(0, 0, 0),
-                        1 => Rgb::new(64, 64, 64),
-                        2 => Rgb::new(128, 128, 128),
-                        3 => Rgb::new(255, 255, 255),
-                        _ => {
-                            panic!("shouldn't get here");
-                        }
-                    };
-
-                    self.put_pixel((tile_index * 8) + pixel as usize, line as usize, color);
-                }
-            }
-        }
-    }
-}
-
-struct ScreenSdl {
-    buffer: [u8; SCREEN_WIDTH * SCREEN_HEIGHT * 3],
-}
-
-impl ScreenSdl {
-    fn new() -> Self {
-        ScreenSdl { buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT * 3] }
-    }
-}
-
-impl Screen for ScreenSdl {
-    fn put_pixel(&mut self, x: usize, y: usize, color: Rgb) {
-        self.buffer[(y * SCREEN_WIDTH + x) * 3] = color.r;
-        self.buffer[(y * SCREEN_WIDTH + x) * 3 + 1] = color.g;
-        self.buffer[(y * SCREEN_WIDTH + x) * 3 + 2] = color.b;
-    }
-}
-
-struct ScreenGlium {
-    buffer: [u8; SCREEN_WIDTH * SCREEN_HEIGHT * 4],
-}
-
-impl ScreenGlium {
-    fn new() -> Self {
-        ScreenGlium { buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT * 4] }
-    }
-}
-
-impl Screen for ScreenGlium {
-    fn put_pixel(&mut self, x: usize, y: usize, color: Rgb) {
-        self.buffer[(y * SCREEN_WIDTH + x) * 4] = 255;
-        self.buffer[(y * SCREEN_WIDTH + x) * 4 + 1] = color.r;
-        self.buffer[(y * SCREEN_WIDTH + x) * 4 + 2] = color.g;
-        self.buffer[(y * SCREEN_WIDTH + x) * 4 + 3] = color.b;
-    }
-}
+use consts::{SCREEN_WIDTH, SCREEN_HEIGHT};
+use screen::*;
 
 fn main() {
     render_glium();
     render_sdl();
+}
+
+fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
+    for tile_index in 0..16 {
+        let plane0_start_index = tile_index * 8;
+        let plane0_end_index = plane0_start_index + 8;
+        let plane1_start_index = plane0_end_index;
+        let plane1_end_index = plane1_start_index + 8;
+
+        let plane0 = &buf[plane0_start_index..plane0_end_index];
+        let plane1 = &buf[plane1_start_index..plane1_end_index];
+
+        for line in 0..8 {
+            for pixel in 0..8 {
+                let val = compute_color_index(plane0[line], plane1[line], pixel);
+                let color = match val {
+                    0 => Rgb::new(0, 0, 0),
+                    1 => Rgb::new(64, 64, 64),
+                    2 => Rgb::new(128, 128, 128),
+                    3 => Rgb::new(255, 255, 255),
+                    _ => {
+                        panic!("shouldn't get here");
+                    }
+                };
+
+                screen.put_pixel((tile_index * 8) + pixel as usize, line as usize, color);
+            }
+        }
+    }
 }
 
 fn get_chr_bytes() -> Vec<u8> {
@@ -122,7 +71,7 @@ fn get_chr_bytes() -> Vec<u8> {
 fn render_glium() {
     let chr_bytes = get_chr_bytes();
     let mut screen = ScreenGlium::new();
-    screen.populate(&chr_bytes);
+    fill_screen(&mut screen, &chr_bytes);
 
     let display = glutin::WindowBuilder::new()
         .with_vsync()
@@ -154,7 +103,7 @@ fn render_glium() {
 fn render_sdl() {
     let chr_bytes = get_chr_bytes();
     let mut screen = ScreenSdl::new();
-    screen.populate(&chr_bytes);
+    fill_screen(&mut screen, &chr_bytes);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
