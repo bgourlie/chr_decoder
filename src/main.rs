@@ -1,4 +1,5 @@
 extern crate sdl2;
+extern crate clock_ticks;
 
 #[macro_use]
 extern crate glium;
@@ -8,17 +9,18 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 use glium::{DisplayBuild, Surface};
-use glium::texture::RawImage2d;
 use glium::glutin;
 
+use std::thread;
+use std::time::Duration;
 use std::fs::File;
 use std::io::Read;
-pub const SCREEN_WIDTH: usize = 256;
-pub const SCREEN_HEIGHT: usize = 240;
-pub const SCREEN_SIZE: usize = SCREEN_WIDTH * SCREEN_HEIGHT * 3;
+
+const SCREEN_WIDTH: usize = 256;
+const SCREEN_HEIGHT: usize = 240;
 
 #[derive(Copy, Clone)]
-pub struct Rgb {
+struct Rgb {
     r: u8,
     g: u8,
     b: u8,
@@ -30,32 +32,34 @@ impl Rgb {
     }
 }
 
-pub trait Screen {
+trait Screen {
     fn put_pixel(&mut self, x: usize, y: usize, color: Rgb);
 
-    fn print_tile(&mut self, tiles: &[u8], tile_index: usize) {
-        let plane0_start_index = tile_index * 8;
-        let plane0_end_index = plane0_start_index + 8;
-        let plane1_start_index = plane0_end_index;
-        let plane1_end_index = plane1_start_index + 8;
+    fn populate(&mut self, buf: &Vec<u8>) {
+        for tile_index in 0..16 {
+            let plane0_start_index = tile_index * 8;
+            let plane0_end_index = plane0_start_index + 8;
+            let plane1_start_index = plane0_end_index;
+            let plane1_end_index = plane1_start_index + 8;
 
-        let plane0 = &tiles[plane0_start_index..plane0_end_index];
-        let plane1 = &tiles[plane1_start_index..plane1_end_index];
+            let plane0 = &buf[plane0_start_index..plane0_end_index];
+            let plane1 = &buf[plane1_start_index..plane1_end_index];
 
-        for line in 0..8 {
-            for pixel in 0..8 {
-                let val = compute_color_index(plane0[line], plane1[line], pixel);
-                let color = match val {
-                    0 => Rgb::new(0, 0, 0),
-                    1 => Rgb::new(64, 64, 64),
-                    2 => Rgb::new(128, 128, 128),
-                    3 => Rgb::new(255, 255, 255),
-                    _ => {
-                        panic!("shouldn't get here");
-                    }
-                };
+            for line in 0..8 {
+                for pixel in 0..8 {
+                    let val = compute_color_index(plane0[line], plane1[line], pixel);
+                    let color = match val {
+                        0 => Rgb::new(0, 0, 0),
+                        1 => Rgb::new(64, 64, 64),
+                        2 => Rgb::new(128, 128, 128),
+                        3 => Rgb::new(255, 255, 255),
+                        _ => {
+                            panic!("shouldn't get here");
+                        }
+                    };
 
-                self.put_pixel((tile_index * 8) + pixel as usize, line as usize, color);
+                    self.put_pixel((tile_index * 8) + pixel as usize, line as usize, color);
+                }
             }
         }
     }
@@ -99,13 +103,15 @@ impl Screen for ScreenGlium {
 }
 
 fn main() {
+    render_glium();
     render_sdl();
 }
 
 fn get_chr_bytes() -> Vec<u8> {
     let mut buf: Vec<u8> = Vec::new();
     let mut f = File::open("chr.bin").unwrap();
-    f.read_to_end(&mut buf);
+    f.read_to_end(&mut buf).unwrap();
+
     if buf.len() % 16 != 0 {
         panic!("Invalid CHR data.");
     }
@@ -113,30 +119,42 @@ fn get_chr_bytes() -> Vec<u8> {
     buf
 }
 
-fn populate_screen(screen: &mut Screen, buf: &Vec<u8>) {
-    for n in 0..16 {
-        screen.print_tile(&buf, n);
-    }
-}
+fn render_glium() {
+    let chr_bytes = get_chr_bytes();
+    let mut screen = ScreenGlium::new();
+    screen.populate(&chr_bytes);
 
-// fn render_glium() {
-//    let chr_bytes = get_chr_bytes();
-//    let screen = ScreenGlium::new();
-//
-//    let display = glutin::WindowBuilder::new()
-//        .with_vsync()
-//        .build_glium()
-//        .unwrap();
-//
-//    let dimensions = ((SCREEN_WIDTH * 3) as u32, (SCREEN_HEIGHT * 3) as u32);
-//    let screen2 = RawImage2d::from_raw_rgba_reversed(&screen.buffer, dimensions);
-//
-// }
+    let display = glutin::WindowBuilder::new()
+        .with_vsync()
+        .build_glium()
+        .unwrap();
+
+    let dimensions = (SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32);
+    let screen = glium::texture::RawImage2d::from_raw_rgba_reversed(screen.buffer[..].to_vec(),
+                                                                    dimensions);
+    let screen = glium::Texture2d::new(&display, screen).unwrap();
+
+    start_loop(|| {
+        let target = display.draw();
+        screen.as_surface().fill(&target, glium::uniforms::MagnifySamplerFilter::Nearest);
+        target.finish().unwrap();
+
+        for event in display.poll_events() {
+            match event {
+                glutin::Event::Closed => return Action::Stop,
+                _ => {}
+            }
+        }
+
+        Action::Continue
+    });
+
+}
 
 fn render_sdl() {
     let chr_bytes = get_chr_bytes();
     let mut screen = ScreenSdl::new();
-    populate_screen(&mut screen, &chr_bytes);
+    screen.populate(&chr_bytes);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
@@ -161,20 +179,53 @@ fn render_sdl() {
     renderer.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    'running: loop {
+    start_loop(|| {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } |
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
+                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => return Action::Stop,
                 _ => {}
             }
         }
-        // The rest of the game loop goes here...
-    }
+
+        Action::Continue
+    });
 }
 
 fn compute_color_index(plane0: u8, plane1: u8, pixel_index: u8) -> u8 {
     let bit0 = (plane0 >> (7 - (pixel_index % 8))) & 0x1;
     let bit1 = (plane1 >> (7 - (pixel_index % 8))) & 0x1;
     (bit1 << 1) | bit0
+}
+
+pub fn start_loop<F>(mut callback: F)
+    where F: FnMut() -> Action
+{
+    let mut accumulator = 0;
+    let mut previous_clock = clock_ticks::precise_time_ns();
+
+    loop {
+        match callback() {
+            Action::Stop => break,
+            Action::Continue => (),
+        };
+
+        let now = clock_ticks::precise_time_ns();
+        accumulator += now - previous_clock;
+        previous_clock = now;
+
+        const FIXED_TIME_STAMP: u64 = 16666667;
+        while accumulator >= FIXED_TIME_STAMP {
+            accumulator -= FIXED_TIME_STAMP;
+
+            // if you have a game, update the state here
+        }
+
+        thread::sleep(Duration::from_millis(((FIXED_TIME_STAMP - accumulator) / 1000000) as u64));
+    }
+}
+
+pub enum Action {
+    Stop,
+    Continue,
 }
