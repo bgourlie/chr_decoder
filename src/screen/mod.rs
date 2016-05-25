@@ -5,17 +5,17 @@ pub trait Screen {
     fn put_pixel(&mut self, x: usize, y: usize, color: Rgb);
 }
 
-pub struct ScreenSdl {
+pub struct ScreenBgr {
     pub buffer: [u8; SCREEN_WIDTH * SCREEN_HEIGHT * 3],
 }
 
-impl ScreenSdl {
+impl ScreenBgr {
     pub fn new() -> Self {
-        ScreenSdl { buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT * 3] }
+        ScreenBgr { buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT * 3] }
     }
 }
 
-impl Screen for ScreenSdl {
+impl Screen for ScreenBgr {
     fn put_pixel(&mut self, x: usize, y: usize, color: Rgb) {
         self.buffer[(y * SCREEN_WIDTH + x) * 3] = color.r;
         self.buffer[(y * SCREEN_WIDTH + x) * 3 + 1] = color.g;
@@ -23,17 +23,17 @@ impl Screen for ScreenSdl {
     }
 }
 
-pub struct ScreenGlium {
+pub struct ScreenRgba {
     pub buffer: [u8; SCREEN_WIDTH * SCREEN_HEIGHT * 4],
 }
 
-impl ScreenGlium {
+impl ScreenRgba {
     pub fn new() -> Self {
-        ScreenGlium { buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT * 4] }
+        ScreenRgba { buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT * 4] }
     }
 }
 
-impl Screen for ScreenGlium {
+impl Screen for ScreenRgba {
     fn put_pixel(&mut self, x: usize, y: usize, color: Rgb) {
         self.buffer[(y * SCREEN_WIDTH + x) * 4] = color.b;
         self.buffer[(y * SCREEN_WIDTH + x) * 4 + 1] = color.g;

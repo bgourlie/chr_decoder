@@ -73,7 +73,7 @@ fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
 
 fn render_glium() {
     let chr_bytes = nes_gfx::read_chr("chr.bin");
-    let mut screen = ScreenGlium::new();
+    let mut screen = ScreenRgba::new();
     //fill_screen(&mut screen, &chr_bytes);
     print_palette(&mut screen);
 
@@ -106,7 +106,7 @@ fn render_glium() {
 
 fn render_sdl() {
     let chr_bytes = nes_gfx::read_chr("chr.bin");
-    let mut screen = ScreenSdl::new();
+    let mut screen = ScreenBgr::new();
     //fill_screen(&mut screen, &chr_bytes);
     print_palette(&mut screen);
     let sdl_context = sdl2::init().unwrap();
