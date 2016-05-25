@@ -13,18 +13,32 @@ use glium::glutin;
 
 use std::thread;
 use std::time::Duration;
-use std::fs::File;
-use std::io::Read;
 
 mod consts;
 mod screen;
+mod nes_gfx;
 
 use consts::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use screen::*;
+use nes_gfx::Rgb;
+
 
 fn main() {
     render_glium();
     render_sdl();
+}
+
+fn print_palette(screen: &mut Screen) {
+    for color_index in 0..64 {
+        let color = nes_gfx::PALETTE[color_index];
+        let y_start = color_index * 3;
+        let y_end = y_start + 3;
+        for y in y_start..y_end + 1 {
+            for x in 0..SCREEN_WIDTH {
+                screen.put_pixel(x as usize, y as usize, color);
+            }
+        }
+    }
 }
 
 fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
@@ -39,7 +53,7 @@ fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
 
         for line in 0..8 {
             for pixel in 0..8 {
-                let val = compute_color_index(plane0[line], plane1[line], pixel);
+                let val = nes_gfx::compute_color_index(plane0[line], plane1[line], pixel);
                 let color = match val {
                     0 => Rgb::new(0, 0, 0),
                     1 => Rgb::new(64, 64, 64),
@@ -56,22 +70,12 @@ fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
     }
 }
 
-fn get_chr_bytes() -> Vec<u8> {
-    let mut buf: Vec<u8> = Vec::new();
-    let mut f = File::open("chr.bin").unwrap();
-    f.read_to_end(&mut buf).unwrap();
-
-    if buf.len() % 16 != 0 {
-        panic!("Invalid CHR data.");
-    }
-
-    buf
-}
 
 fn render_glium() {
-    let chr_bytes = get_chr_bytes();
+    let chr_bytes = nes_gfx::read_chr("chr.bin");
     let mut screen = ScreenGlium::new();
-    fill_screen(&mut screen, &chr_bytes);
+    //fill_screen(&mut screen, &chr_bytes);
+    print_palette(&mut screen);
 
     let display = glutin::WindowBuilder::new()
         .with_vsync()
@@ -101,9 +105,10 @@ fn render_glium() {
 }
 
 fn render_sdl() {
-    let chr_bytes = get_chr_bytes();
+    let chr_bytes = nes_gfx::read_chr("chr.bin");
     let mut screen = ScreenSdl::new();
-    fill_screen(&mut screen, &chr_bytes);
+    //fill_screen(&mut screen, &chr_bytes);
+    print_palette(&mut screen);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
@@ -141,11 +146,6 @@ fn render_sdl() {
     });
 }
 
-fn compute_color_index(plane0: u8, plane1: u8, pixel_index: u8) -> u8 {
-    let bit0 = (plane0 >> (7 - (pixel_index % 8))) & 0x1;
-    let bit1 = (plane1 >> (7 - (pixel_index % 8))) & 0x1;
-    (bit1 << 1) | bit0
-}
 
 pub fn start_loop<F>(mut callback: F)
     where F: FnMut() -> Action
