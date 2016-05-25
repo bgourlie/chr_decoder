@@ -14,14 +14,11 @@ use glium::glutin;
 use std::thread;
 use std::time::Duration;
 
-mod consts;
 mod screen;
 mod nes_gfx;
 
-use consts::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use screen::*;
 use nes_gfx::Rgb;
-
 
 fn main() {
     render_glium();
@@ -42,7 +39,8 @@ fn print_palette(screen: &mut Screen) {
 }
 
 fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
-    for tile_index in 0..16 {
+    let mut cur_line = -1;
+    for tile_index in 0..512 {
         let plane0_start_index = tile_index * 8;
         let plane0_end_index = plane0_start_index + 8;
         let plane1_start_index = plane0_end_index;
@@ -51,11 +49,15 @@ fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
         let plane0 = &buf[plane0_start_index..plane0_end_index];
         let plane1 = &buf[plane1_start_index..plane1_end_index];
 
-        for line in 0..8 {
-            for pixel in 0..8 {
-                let val = nes_gfx::compute_color_index(plane0[line], plane1[line], pixel);
+        if tile_index % 32 == 0 {
+            cur_line += 1
+        }
+
+        for y in 0..8 {
+            for x in 0..8 {
+                let val = nes_gfx::compute_color_index(plane0[y], plane1[y], x);
                 let color = match val {
-                    0 => Rgb::new(0, 0, 0),
+                    0 => Rgb::new(32, 32, 32),
                     1 => Rgb::new(64, 64, 64),
                     2 => Rgb::new(128, 128, 128),
                     3 => Rgb::new(255, 255, 255),
@@ -64,18 +66,19 @@ fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
                     }
                 };
 
-                screen.put_pixel((tile_index * 8) + pixel as usize, line as usize, color);
+                screen.put_pixel((tile_index * 8) + x as usize,
+                                 y + (cur_line * 8) as usize,
+                                 color);
             }
         }
     }
 }
 
-
 fn render_glium() {
     let chr_bytes = nes_gfx::read_chr("chr.bin");
     let mut screen = ScreenRgba::new();
-    //fill_screen(&mut screen, &chr_bytes);
-    print_palette(&mut screen);
+    fill_screen(&mut screen, &chr_bytes);
+    // print_palette(&mut screen);
 
     let display = glutin::WindowBuilder::new()
         .with_vsync()
@@ -107,8 +110,8 @@ fn render_glium() {
 fn render_sdl() {
     let chr_bytes = nes_gfx::read_chr("chr.bin");
     let mut screen = ScreenBgr::new();
-    //fill_screen(&mut screen, &chr_bytes);
-    print_palette(&mut screen);
+    fill_screen(&mut screen, &chr_bytes);
+    // print_palette(&mut screen);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
@@ -145,7 +148,6 @@ fn render_sdl() {
         Action::Continue
     });
 }
-
 
 pub fn start_loop<F>(mut callback: F)
     where F: FnMut() -> Action

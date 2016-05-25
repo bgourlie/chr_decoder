@@ -1,5 +1,7 @@
-use consts::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use nes_gfx::Rgb;
+
+pub const SCREEN_WIDTH: usize = 256;
+pub const SCREEN_HEIGHT: usize = 240;
 
 pub trait Screen {
     fn put_pixel(&mut self, x: usize, y: usize, color: Rgb);
