@@ -5,10 +5,11 @@ pub const SCREEN_HEIGHT: usize = 240;
 
 pub trait Screen {
     fn put_pixel(&mut self, x: usize, y: usize, color: Rgb);
+    fn get_buffer(&self) -> &[u8];
 }
 
 pub struct ScreenBgr {
-    pub buffer: [u8; SCREEN_WIDTH * SCREEN_HEIGHT * 3],
+    buffer: [u8; SCREEN_WIDTH * SCREEN_HEIGHT * 3],
 }
 
 impl ScreenBgr {
@@ -22,6 +23,10 @@ impl Screen for ScreenBgr {
         self.buffer[(y * SCREEN_WIDTH + x) * 3] = color.r;
         self.buffer[(y * SCREEN_WIDTH + x) * 3 + 1] = color.g;
         self.buffer[(y * SCREEN_WIDTH + x) * 3 + 2] = color.b;
+    }
+
+    fn get_buffer(&self) -> &[u8] {
+        &self.buffer
     }
 }
 
@@ -41,5 +46,9 @@ impl Screen for ScreenRgba {
         self.buffer[(y * SCREEN_WIDTH + x) * 4 + 1] = color.g;
         self.buffer[(y * SCREEN_WIDTH + x) * 4 + 2] = color.r;
         self.buffer[(y * SCREEN_WIDTH + x) * 4 + 3] = 255;
+    }
+
+    fn get_buffer(&self) -> &[u8] {
+        &self.buffer
     }
 }

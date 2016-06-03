@@ -14,11 +14,13 @@ use glium::glutin;
 use std::thread;
 use std::time::Duration;
 
+mod renderer;
 mod screen;
 mod nes_gfx;
 
 use screen::*;
 use nes_gfx::Rgb;
+use renderer::*;
 
 fn main() {
     render_glium();
@@ -111,32 +113,13 @@ fn render_sdl() {
     let chr_bytes = nes_gfx::read_chr("chr.bin");
     let mut screen = ScreenBgr::new();
     fill_screen(&mut screen, &chr_bytes);
-    // print_palette(&mut screen);
     let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-
-    let window = video_subsystem.window("rust-sdl2 demo: Video",
-                SCREEN_WIDTH as u32 * 3,
-                SCREEN_HEIGHT as u32 * 3)
-        .position_centered()
-        .opengl()
-        .build()
-        .unwrap();
-
-    let mut renderer = window.renderer().accelerated().present_vsync().build().unwrap();
-
-    let mut texture = renderer.create_texture_streaming(PixelFormatEnum::BGR24,
-                                  SCREEN_WIDTH as u32,
-                                  SCREEN_HEIGHT as u32)
-        .unwrap();
-
-    texture.update(None, &screen.buffer, SCREEN_WIDTH * 3).unwrap();
-    renderer.clear();
-    renderer.copy(&texture, None, None);
-    renderer.present();
+    let mut renderer =
+        renderer::SdlRenderer::new(&sdl_context, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32);
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     start_loop(|| {
+        renderer.render(&screen);
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } |
