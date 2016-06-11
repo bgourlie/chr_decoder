@@ -16,3 +16,7 @@ Cargo.lock
 
 # rust-fmt
 *.bk
+
+# Intellij
+*.iml
+.idea

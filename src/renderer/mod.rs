@@ -1,5 +1,11 @@
 use sdl2;
 use sdl2::pixels::PixelFormatEnum;
+// use glium::texture::RawImage2d;
+// use glium::glutin::{WindowBuilder, Window};
+// use glium::{Texture2d, DisplayBuild, Surface};
+// use glium::framebuffer::SimpleFrameBuffer;
+// use glium::glutin;
+// use glium::backend::glutin_backend::GlutinFacade;
 use screen::Screen;
 
 pub trait Renderer {
@@ -9,8 +15,7 @@ pub trait Renderer {
 pub struct SdlRenderer<'a> {
     renderer: sdl2::render::Renderer<'a>,
     texture: sdl2::render::Texture,
-    texture_width: u32,
-    texture_height: u32,
+    pitch: usize,
 }
 
 impl<'a> SdlRenderer<'a> {
@@ -30,24 +35,55 @@ impl<'a> SdlRenderer<'a> {
             renderer.create_texture_streaming(PixelFormatEnum::BGR24, screen_width, screen_height)
                 .unwrap();
 
-        let texture_query = texture.query();
+        // pitch is the number of bytes in a row of pixel data, including padding between lines
+        let pitch = texture.query().width as usize * 3 as usize;
 
         SdlRenderer {
             renderer: renderer,
             texture: texture,
-            texture_width: texture_query.width,
-            texture_height: texture_query.height,
+            pitch: pitch,
         }
     }
 }
 
 impl<'a> Renderer for SdlRenderer<'a> {
     fn render(&mut self, screen: &Screen) {
-        // pitch is the number of bytes in a row of pixel data, including padding between lines
-        let pitch = self.texture_width as usize * 3 as usize;
-        self.texture.update(None, &screen.get_buffer(), pitch).unwrap();
+        self.texture.update(None, &screen.get_buffer(), self.pitch).unwrap();
         self.renderer.clear();
         self.renderer.copy(&self.texture, None, None);
         self.renderer.present();
     }
 }
+
+// pub struct GliumRenderer {
+//    window: GlutinFacade,
+//    frame_buffer: SimpleFrameBuffer
+// }
+//
+// impl GliumRenderer {
+//    pub fn new(screen: &Screen, screen_width: u32, screen_height: u32) -> Self {
+//
+//        let display = WindowBuilder::new()
+//        .with_vsync()
+//        .build_glium()
+//        .unwrap();
+//
+//        let dimensions = (screen_width, screen_height);
+//        let screen_texture = RawImage2d::from_raw_rgba_reversed(screen.get_buffer().to_vec(),
+//                                                                        dimensions);
+//        let screen_texture = Texture2d::new(&display, screen_texture).unwrap();
+//
+//        let frame_buffer = screen_texture.as_surface();
+//
+//        GliumRenderer {
+//            window: window,
+//            screen_texture: screen_texture
+//        }
+//    }
+// }
+//
+// impl Renderer for GliumRenderer {
+//   fn render(&mut self, screen: &Screen) {
+//
+//   }
+// }

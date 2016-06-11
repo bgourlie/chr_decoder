@@ -1,5 +1,35 @@
 use std::fs::File;
 use std::io::Read;
+use std::ops::Deref;
+
+const PRG_ROM_PAGE_SIZE: usize = 8192;
+
+// This is kinda arbitrary at the moment.  The idea is to allocate enough to hold chr for any rom
+const PRG_TILE_BUFFER_SIZE: usize = PRG_ROM_PAGE_SIZE / 16;
+
+#[derive(Copy, Clone)]
+enum NesPixel {
+    Background,
+    Palette1,
+    Palette2,
+    Palette3,
+}
+
+impl NesPixel {
+    pub fn new(plane0: u8, plane1: u8, pixel_index: u8) -> Self {
+        let bit0 = (plane0 >> (7 - (pixel_index % 8))) & 0x1;
+        let bit1 = (plane1 >> (7 - (pixel_index % 8))) & 0x1;
+        let index = (bit1 << 1) | bit0;
+
+        match index {
+            0 => NesPixel::Background,
+            1 => NesPixel::Palette1,
+            2 => NesPixel::Palette2,
+            3 => NesPixel::Palette3,
+            _ => panic!("Unexpected palette index"),
+        }
+    }
+}
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub static PALETTE: [Rgb; 64] = [
@@ -76,26 +106,59 @@ pub struct Rgb {
     pub b: u8,
 }
 
+pub struct ChrData {
+    pixels: [NesPixel; PRG_TILE_BUFFER_SIZE],
+}
+
+impl ChrData {
+    pub fn from_raw_file(file_name: &'static str) -> ChrData {
+        let mut buf: Vec<u8> = Vec::new();
+        let mut f = File::open(file_name).unwrap();
+        f.read_to_end(&mut buf).unwrap();
+
+        if buf.len() % PRG_ROM_PAGE_SIZE != 0 {
+            panic!("Invalid CHR data.");
+        }
+
+        let mut pixels: [NesPixel; PRG_TILE_BUFFER_SIZE] =
+            [NesPixel::Background; PRG_TILE_BUFFER_SIZE];
+
+        for tile_index in 0..buf.len() / 16 {
+            let plane0_start_index = tile_index * 16;
+            let plane0_end_index = plane0_start_index + 8;
+            let plane1_start_index = plane0_end_index;
+            let plane1_end_index = plane1_start_index + 8;
+
+            let plane0 = &buf[plane0_start_index..plane0_end_index];
+            let plane1 = &buf[plane1_start_index..plane1_end_index];
+
+            for i in 0..16 {
+                pixels[(tile_index * 16) + i] =
+                    NesPixel::new(plane0[tile_index], plane1[tile_index], i as u8);
+            }
+        }
+
+        ChrData { pixel: pixels }
+    }
+}
+
+impl Deref for ChrData {
+    type Target = [NesPixel; PRG_TILE_BUFFER_SIZE];
+
+    fn deref(&self) -> &[NesPixel; PRG_TILE_BUFFER_SIZE] {
+        &self.chr
+    }
+}
+
 impl Rgb {
     pub fn new(r: u8, g: u8, b: u8) -> Self {
         Rgb { r: r, g: g, b: b }
     }
 }
 
+// Delete and use ChrInfo impl
 pub fn compute_color_index(plane0: u8, plane1: u8, pixel_index: u8) -> u8 {
     let bit0 = (plane0 >> (7 - (pixel_index % 8))) & 0x1;
     let bit1 = (plane1 >> (7 - (pixel_index % 8))) & 0x1;
     (bit1 << 1) | bit0
-}
-
-pub fn read_chr(file_name: &'static str) -> Vec<u8> {
-    let mut buf: Vec<u8> = Vec::new();
-    let mut f = File::open(file_name).unwrap();
-    f.read_to_end(&mut buf).unwrap();
-
-    if buf.len() % 16 != 0 {
-        panic!("Invalid CHR data.");
-    }
-
-    buf
 }

@@ -19,7 +19,7 @@ mod screen;
 mod nes_gfx;
 
 use screen::*;
-use nes_gfx::Rgb;
+use nes_gfx::{Rgb, ChrData, NesPixel};
 use renderer::*;
 
 fn main() {
@@ -27,6 +27,7 @@ fn main() {
     render_sdl();
 }
 
+#[allow(dead_code)]
 fn print_palette(screen: &mut Screen) {
     for color_index in 0..64 {
         let color = nes_gfx::PALETTE[color_index];
@@ -40,46 +41,30 @@ fn print_palette(screen: &mut Screen) {
     }
 }
 
-fn fill_screen(screen: &mut Screen, buf: &Vec<u8>) {
+fn fill_screen(screen: &mut Screen, chr: &ChrData) {
     let mut cur_line = -1;
-    for tile_index in 0..512 {
-        let plane0_start_index = tile_index * 8;
-        let plane0_end_index = plane0_start_index + 8;
-        let plane1_start_index = plane0_end_index;
-        let plane1_end_index = plane1_start_index + 8;
+        for pixel in chr.pixels {
 
-        let plane0 = &buf[plane0_start_index..plane0_end_index];
-        let plane1 = &buf[plane1_start_index..plane1_end_index];
+            let color = match pixel {
+                NesPixel::Background => Rgb::new(32, 32, 32),
+                NesPixel::Palette1 => Rgb::new(64, 64, 64),
+                NesPixel::Palette2 => Rgb::new(128, 128, 128),
+                NesPixel::Palette3 => Rgb::new(255, 255, 255),
+                _ => {
+                    panic!("shouldn't get here");
+                }
+            };
 
-        if tile_index % 32 == 0 {
-            cur_line += 1
+            screen.put_pixel((tile_index * 8) + x as usize,
+                             y + (cur_line * 8) as usize,
+                             color);
         }
-
-        for y in 0..8 {
-            for x in 0..8 {
-                let val = nes_gfx::compute_color_index(plane0[y], plane1[y], x);
-                let color = match val {
-                    0 => Rgb::new(32, 32, 32),
-                    1 => Rgb::new(64, 64, 64),
-                    2 => Rgb::new(128, 128, 128),
-                    3 => Rgb::new(255, 255, 255),
-                    _ => {
-                        panic!("shouldn't get here");
-                    }
-                };
-
-                screen.put_pixel((tile_index * 8) + x as usize,
-                                 y + (cur_line * 8) as usize,
-                                 color);
-            }
-        }
-    }
 }
 
 fn render_glium() {
-    let chr_bytes = nes_gfx::read_chr("chr.bin");
+    let chr = nes_gfx::ChrData::from_raw_file("chr.bin");
     let mut screen = ScreenRgba::new();
-    fill_screen(&mut screen, &chr_bytes);
+    fill_screen(&mut screen, &chr);
     // print_palette(&mut screen);
 
     let display = glutin::WindowBuilder::new()
@@ -110,9 +95,9 @@ fn render_glium() {
 }
 
 fn render_sdl() {
-    let chr_bytes = nes_gfx::read_chr("chr.bin");
+    let chr = nes_gfx::ChrData::from_raw_file("chr.bin");
     let mut screen = ScreenBgr::new();
-    fill_screen(&mut screen, &chr_bytes);
+    fill_screen(&mut screen, &chr);
     let sdl_context = sdl2::init().unwrap();
     let mut renderer =
         renderer::SdlRenderer::new(&sdl_context, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32);
